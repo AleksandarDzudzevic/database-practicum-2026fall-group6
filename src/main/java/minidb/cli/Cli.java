@@ -1,9 +1,11 @@
 package minidb.cli;
 
+import java.io.PrintStream;
 import java.util.Scanner;
 
 import minidb.Engine;
 import minidb.exec.QueryResult;
+import minidb.sql.SqlParseException;
 
 /** Reads one SQL statement per line. The database stays read-only. */
 public final class Cli {
@@ -14,10 +16,18 @@ public final class Cli {
     }
 
     public void run() {
-        System.out.println("minidb skeleton. Type a query, or quit.");
-        Scanner scanner = new Scanner(System.in);
+        run(new Scanner(System.in), System.out);
+    }
+
+    /** Reads statements from {@code input}. Used by tests and by {@link #run()}. */
+    public void run(Readable input, PrintStream output) {
+        run(new Scanner(input), output);
+    }
+
+    private void run(Scanner scanner, PrintStream output) {
+        output.println("minidb skeleton. Type a query, or quit.");
         while (true) {
-            System.out.print("minidb> ");
+            output.print("minidb> ");
             if (!scanner.hasNextLine()) {
                 break;
             }
@@ -30,9 +40,11 @@ public final class Cli {
             }
             try {
                 QueryResult result = engine.execute(line);
-                result.printTo(System.out);
+                result.printTo(output);
+            } catch (SqlParseException ex) {
+                output.println(ex.getMessage());
             } catch (UnsupportedOperationException ex) {
-                System.out.println(ex.getMessage());
+                output.println(ex.getMessage());
             }
         }
     }
