@@ -8,12 +8,33 @@ import java.io.PrintStream;
 import java.io.StringReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
+import java.nio.file.Files;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.io.TempDir;
 
 import org.junit.jupiter.api.Test;
 
 import minidb.Engine;
 
 class CliTest {
+    @TempDir Path data;
+
+    @BeforeEach void prepareTable() throws Exception {
+        Files.writeString(data.resolve("students.schema"), "id INTEGER\n");
+        Files.writeString(data.resolve("students.csv"), "id\n1\n");
+    }
+    @Test
+    void planningErrorDoesNotStopTheNextStatement() {
+        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+        PrintStream output = new PrintStream(buffer, true, StandardCharsets.UTF_8);
+        new Cli(new Engine(data)).run(new StringReader(
+                "SELECT missing FROM students\nSELECT id FROM students\nquit\n"), output);
+        String text = buffer.toString(StandardCharsets.UTF_8);
+        int error = text.indexOf("Unknown column: missing");
+        assertTrue(error >= 0, text);
+        assertTrue(text.indexOf("(1 rows)") > error, text);
+    }
+
     @Test
     void excessiveNestingDoesNotTerminateTheSession() {
         ByteArrayOutputStream buffer = new ByteArrayOutputStream();
@@ -25,16 +46,16 @@ class CliTest {
                 + "SELECT id FROM students\n"
                 + prefix + "NOT (".repeat(5_000) + "a=1" + ")".repeat(5_000) + "\n"
                 + "SELECT id FROM students\nquit\n";
-        new Cli(new Engine(Path.of("unused-data"))).run(new StringReader(input), output);
+        new Cli(new Engine(data)).run(new StringReader(input), output);
 
         String text = buffer.toString(StandardCharsets.UTF_8);
         int previous = -1;
         for (int i = 0; i < 3; i++) {
             int error = text.indexOf("predicate nesting exceeds limit of 128", previous + 1);
-            int planner = text.indexOf("Planning is not implemented", error + 1);
+            int result = text.indexOf("(1 rows)", error + 1);
             assertTrue(error > previous, text);
-            assertTrue(planner > error, text);
-            previous = planner;
+            assertTrue(result > error, text);
+            previous = result;
         }
         assertEquals(7, text.split("minidb>", -1).length - 1);
     }
@@ -49,15 +70,15 @@ class CliTest {
                 SELECT a FROM t JOIN u
                 quit
                 """;
-        new Cli(new Engine(Path.of("unused-data"))).run(new StringReader(input), output);
+        new Cli(new Engine(data)).run(new StringReader(input), output);
 
         String text = buffer.toString(StandardCharsets.UTF_8);
         int parseError = text.indexOf("expected column name");
-        int plannerStub = text.indexOf("Planning is not implemented");
+        int queryResult = text.indexOf("(1 rows)");
         int joinError = text.indexOf("JOIN is not supported");
         assertTrue(parseError >= 0, text);
-        assertTrue(plannerStub > parseError, text);
-        assertTrue(joinError > plannerStub, text);
+        assertTrue(queryResult > parseError, text);
+        assertTrue(joinError > queryResult, text);
         assertEquals(4, text.split("minidb>", -1).length - 1);
     }
 }

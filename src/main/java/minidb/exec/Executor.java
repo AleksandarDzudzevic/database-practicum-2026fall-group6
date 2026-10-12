@@ -4,14 +4,23 @@ import minidb.plan.LogicalOperator;
 import minidb.storage.TableStore;
 
 public final class Executor {
-    @SuppressWarnings("unused")
     private final TableStore store;
 
     public Executor(TableStore store) {
         this.store = store;
     }
 
+    /** Builds a fresh operator tree without opening cursors or reading rows. */
     public Operator compile(LogicalOperator plan) {
-        throw new UnsupportedOperationException("Execution is not implemented");
+        if (plan instanceof LogicalOperator.Scan scan) {
+            return new TableScanOperator(store, scan.tableName());
+        }
+        if (plan instanceof LogicalOperator.Filter filter) {
+            return new FilterOperator(compile(filter.child()), filter.predicate(), new ExpressionEvaluator());
+        }
+        if (plan instanceof LogicalOperator.Project project) {
+            return new ProjectOperator(compile(project.child()), project.columnIndexes());
+        }
+        throw new IllegalArgumentException("Unsupported logical plan: " + plan);
     }
 }

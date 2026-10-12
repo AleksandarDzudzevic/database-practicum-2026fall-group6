@@ -1,0 +1,15 @@
+ CHANGELOG.md                                     |  30 [32m++[m
+ README.md                                        | 190 [32m+++++++++[m[31m---[m
+ docs/parser.md                                   |  30 [32m+[m[31m-[m
+ docs/planner.md                                  |  34 [32m+++[m
+ docs/query-filtering.md                          | 366 [32m+++++[m[31m------------------[m
+ docs/storage.md                                  |   9 [32m+[m[31m-[m
+ src/main/java/minidb/cli/Cli.java                |   3 [32m+[m[31m-[m
+ src/main/java/minidb/exec/Executor.java          |  13 [32m+[m[31m-[m
+ src/main/java/minidb/plan/Planner.java           | 116 [32m++++++[m[31m-[m
+ src/main/java/minidb/plan/PlanningException.java |   8 [32m+[m
+ src/test/java/minidb/EngineTest.java             |  59 [32m+++[m[31m-[m
+ src/test/java/minidb/cli/CliTest.java            |  37 [32m++[m[31m-[m
+ src/test/java/minidb/exec/ExecutorTest.java      |  45 [32m+++[m
+ src/test/java/minidb/plan/PlannerTest.java       |  93 [32m++++++[m
+ 14 files changed, 663 insertions(+), 370 deletions(-)
