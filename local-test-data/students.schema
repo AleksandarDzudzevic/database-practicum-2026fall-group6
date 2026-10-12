@@ -1,0 +1,4 @@
+id INTEGER
+name STRING
+age INTEGER
+score INTEGER

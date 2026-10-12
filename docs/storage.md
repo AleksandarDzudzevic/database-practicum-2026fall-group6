@@ -135,8 +135,9 @@ before running queries.
   Filtering, projection, joins, sorting, and grouping belong above storage.
 - Each call to `scan()` creates its own file position, including scans of the same
   table. This supports repeated scans and self-joins.
-- The CLI can display `StorageException.getMessage()` when query execution is wired
-  up. It currently handles only the skeleton's unimplemented-operation errors.
+- The CLI prints `SqlParseException` and the skeleton's unimplemented-operation
+  errors, then reads the next line. `StorageException` still propagates until
+  query execution is wired up.
 - `Engine` still accumulates output rows in `QueryResult`. Streaming storage does
   not yet make the entire query pipeline bounded in memory.
 

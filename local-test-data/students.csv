@@ -1,0 +1,12 @@
+id,name,age,score
+1,Alice,20,90
+2,Bob,17,75
+3,Carol,18,85
+4,O'Brien,22,95
+5,"Smith, Bob",19,80
+6,,21,60
+7,alice,20,90
+8,Zero,18,0
+9,Min,23,-2147483648
+10,Max,24,2147483647
+1,Alice,20,90

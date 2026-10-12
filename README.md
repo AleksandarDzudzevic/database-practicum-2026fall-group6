@@ -24,7 +24,14 @@ mvn -q package
 java -jar target/minidb-0.1.0.jar data
 ```
 
-The prompt accepts a line and exits on `quit`. Execution throws until `Parser` is filled in.
+The prompt accepts a line and exits on `quit`. A single-table `SELECT` parses; planning still throws.
+
+## Parser (implemented)
+
+The parser accepts one `SELECT` over one table, with an optional `WHERE`. It
+returns an AST and does not read table files. Planning still throws.
+
+See [the parser guide](docs/parser.md) for the grammar, AST, errors, and tests.
 
 ## Storage (implemented)
 

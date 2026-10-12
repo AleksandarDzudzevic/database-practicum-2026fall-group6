@@ -3,7 +3,7 @@ package minidb.sql.ast;
 import java.util.List;
 
 /**
- * Select-project-join shape. `where` stays null until filters are supported.
+ * Select-project-join shape. {@code where} is null when the query has no filter.
  * Grouping, ordering, and subqueries can be added as further fields.
  */
 public record Query(
