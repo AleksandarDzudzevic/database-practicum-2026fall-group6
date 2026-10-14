@@ -17,7 +17,6 @@ import minidb.catalog.Column;
 import minidb.catalog.DirectoryCatalog;
 import minidb.catalog.SchemaFiles;
 import minidb.catalog.Table;
-import minidb.types.DataType;
 import minidb.types.Value;
 
 /** Streaming CSV storage with explicit schemas. Write new tables between query runs. */
@@ -99,8 +98,10 @@ public final class DirectoryTableStore implements TableStore {
             Column column = table.columns().get(i);
             Value value = row.values().get(i);
             boolean valid = value != null && value.type() == column.type()
-                    && (column.type() == DataType.INTEGER ? value.raw() instanceof Integer
-                            : value.raw() instanceof String);
+                    && switch (column.type()) {
+                        case INTEGER -> value.raw() instanceof Integer;
+                        case STRING -> value.raw() instanceof String;
+                    };
             if (!valid) {
                 throw new StorageException(context + ", column " + column.name()
                         + ": expected non-null " + column.type() + " value");

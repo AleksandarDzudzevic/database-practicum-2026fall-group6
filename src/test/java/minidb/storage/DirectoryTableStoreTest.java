@@ -201,6 +201,7 @@ class DirectoryTableStoreTest {
         TableStore store = new DirectoryTableStore(directory);
         for (Row invalid : List.of(new Row(List.of()),
                 new Row(List.of(new Value(DataType.INTEGER, 1), new Value(DataType.STRING, null))),
+                new Row(List.of(new Value(DataType.INTEGER, 1), new Value(DataType.STRING, 2))),
                 new Row(List.of(new Value(DataType.STRING, "1"), new Value(DataType.STRING, "A"))))) {
             assertThrows(StorageException.class, () -> store.write(STUDENTS, List.of(invalid)));
         }

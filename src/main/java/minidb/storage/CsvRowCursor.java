@@ -16,7 +16,6 @@ import org.apache.commons.csv.CSVRecord;
 
 import minidb.catalog.Column;
 import minidb.catalog.Table;
-import minidb.types.DataType;
 import minidb.types.Value;
 
 /** A single-use scan. Keeps only the parser's buffer and the current record in memory. */
@@ -81,18 +80,20 @@ final class CsvRowCursor implements RowCursor {
             for (int i = 0; i < record.size(); i++) {
                 Column column = table.columns().get(i);
                 String text = record.get(i);
-                Object raw = text;
-                if (column.type() == DataType.INTEGER) {
-                    try {
-                        if (!INTEGER_PATTERN.matcher(text).matches()) {
-                            throw new NumberFormatException("Not a decimal integer");
+                Object raw = switch (column.type()) {
+                    case INTEGER -> {
+                        try {
+                            if (!INTEGER_PATTERN.matcher(text).matches()) {
+                                throw new NumberFormatException("Not a decimal integer");
+                            }
+                            yield Integer.valueOf(text);
+                        } catch (NumberFormatException e) {
+                            throw new StorageException(context + ", column " + column.name()
+                                    + ": expected 32-bit INTEGER, found \"" + text + "\"", e);
                         }
-                        raw = Integer.valueOf(text);
-                    } catch (NumberFormatException e) {
-                        throw new StorageException(context + ", column " + column.name()
-                                + ": expected 32-bit INTEGER, found \"" + text + "\"", e);
                     }
-                }
+                    case STRING -> text;
+                };
                 values.add(new Value(column.type(), raw));
             }
             nextRecord++;

@@ -52,6 +52,10 @@ Explicit schemas avoid guessing whether values such as `00123` are numbers or te
 They are storage metadata, not SQL parser configuration. This format can be revised
 later if the team chooses another catalog representation.
 
+CSV conversion and write validation handle `INTEGER` and `STRING` with exhaustive
+`switch` expressions. Adding a new `DataType` requires updating both switches;
+unsupported new types cannot silently fall through to string handling.
+
 ## Read disk data into memory
 
 ```java

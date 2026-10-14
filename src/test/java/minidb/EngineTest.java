@@ -8,7 +8,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import minidb.plan.PlanningException;
+import minidb.catalog.Column;
+import minidb.catalog.Table;
+import minidb.storage.DirectoryTableStore;
+import minidb.storage.Row;
 import minidb.storage.StorageException;
+import minidb.types.DataType;
+import minidb.types.Value;
 
 class EngineTest {
     @TempDir Path data;
@@ -28,6 +34,27 @@ class EngineTest {
     @Test void executesStarAndPreservesDuplicateRows() {
         assertEquals(List.of(List.of(1, "Alice", 20), List.of(2, "Bob", 17),
                 List.of(3, "O'Brien", 25), List.of(1, "Alice", 20)), query("SELECT * FROM students"));
+    }
+
+    @Test void queriesTableWrittenThroughStorageWithBothTypes() {
+        Table table = new Table("imported", List.of(
+                new Column("code", DataType.STRING),
+                new Column("amount", DataType.INTEGER),
+                new Column("label", DataType.STRING)));
+        new DirectoryTableStore(data).write(table, List.of(
+                new Row(List.of(new Value(DataType.STRING, "00123"),
+                        new Value(DataType.INTEGER, Integer.MIN_VALUE),
+                        new Value(DataType.STRING, "Smith, Bob"))),
+                new Row(List.of(new Value(DataType.STRING, "00124"),
+                        new Value(DataType.INTEGER, Integer.MAX_VALUE),
+                        new Value(DataType.STRING, "O'Brien")))));
+
+        // A fresh engine discovers the exported schema and data without an in-memory table.
+        engine = new Engine(data);
+        assertEquals(List.of(List.of("00123", "Smith, Bob")),
+                query("SELECT code, label FROM imported WHERE amount < 0"));
+        assertEquals(List.of(List.of("00124", Integer.MAX_VALUE)),
+                query("SELECT code, amount FROM imported WHERE label = 'O''Brien'"));
     }
 
     @Test void filtersBeforeProjectionAndPreservesRepeatedColumns() {
