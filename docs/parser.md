@@ -95,7 +95,7 @@ inside `sql/ast/Expression.java`:
 | `students.age` / `age` | existing `ColumnRef` |
 
 `ColumnRef` remains its own record. The parser does not build `Join` values or
-bound expressions. `ComparisonOp` is the enum a later planner can share when it
+bound expressions. `ComparisonOp` is the enum shared with the planner when it
 binds columns to indexes.
 
 ## What this version rejects
@@ -119,24 +119,20 @@ does not terminate the CLI. Separate sibling predicates do not accumulate levels
 
 ## Team integration
 
-- `Engine.execute` parses, then calls `Planner.plan`. Planning and
-  `Executor.compile` still throw. A parse tree is not a query result.
-- The planner should validate one table, an empty join list, null aliases, and
-  a predicate-shaped `where`. It should bind names with the catalog and reject
-  mismatched types. String ordering such as `name > 'Alice'` can parse and
-  still fail during planning. Integer ordering is a planning concern too.
-- Expand `Expression.Star` from the catalog. Keep the input column order.
-- The CLI prints `SqlParseException` and `UnsupportedOperationException`, then
-  reads the next line. `StorageException` still propagates. `quit` and `exit`
-  leave the prompt.
-- Operators on the unmerged `filter` branch evaluate bound expressions, not
-  these AST nodes. The shared `ComparisonOp` names are `EQ`, `NE`, `LT`, `LE`,
-  `GT`, and `GE`.
+- Engine.execute parses, plans, compiles an operator tree, and collects query results.
+- Planner validates the single-table subset, binds names, checks types, and expands
+  star in schema order. String ordering can parse but fails planning.
+- Operators evaluate BoundExpression nodes produced by Planner. Both layers share
+  ComparisonOp: EQ, NE, LT, LE, GT, and GE.
+- The CLI prints SqlParseException and PlanningException and reads the next line.
+  StorageException still propagates. Type quit or exit to leave.
+- Parser nesting limits and Planner tree-depth limits are separate; see
+  [planner.md](planner.md) for the latter.
 
 ## Run and verify
 
 ```bash
-mvn -q -Dtest=SqlParserTest,SqlTokenizerTest,ExpressionAstTest,CliTest test
+mvn -q "-Dtest=SqlParserTest,SqlTokenizerTest,ExpressionAstTest,CliTest" test
 mvn -q test
 mvn -q package
 ```
@@ -144,5 +140,5 @@ mvn -q package
 Parser tests do not need CSV fixtures. They assert tree structure, including
 precedence and parentheses, and they check error positions. Tokenizer tests
 cover quoting, keyword boundaries, signed bounds, and whitespace. `CliTest`
-sends a syntax error, then a statement that reaches the planner stub, then
-another syntax error. The stub message means parsing finished.
+sends a syntax error, then a statement that returns actual query results, then
+another syntax error. It also verifies recovery after a planning error.

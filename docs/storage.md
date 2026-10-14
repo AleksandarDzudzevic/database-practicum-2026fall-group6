@@ -131,13 +131,12 @@ before running queries.
 - `DirectoryTableStore(Path, Catalog)` permits the team to supply another catalog.
   The default constructor uses `DirectoryCatalog`. `Engine` now shares one catalog
   instance with its store. The CSV header must still match the supplied metadata.
-- A query table-scan operator should delegate `open/next/close` to a `RowCursor`.
+- TableScanOperator delegates `open/next/close` to a `RowCursor`.
   Filtering, projection, joins, sorting, and grouping belong above storage.
 - Each call to `scan()` creates its own file position, including scans of the same
   table. This supports repeated scans and self-joins.
-- The CLI prints `SqlParseException` and the skeleton's unimplemented-operation
-  errors, then reads the next line. `StorageException` still propagates until
-  query execution is wired up.
+- The CLI prints `SqlParseException` and `PlanningException`, then reads the
+  next line. `StorageException` still propagates and ends the CLI session.
 - `Engine` still accumulates output rows in `QueryResult`. Streaming storage does
   not yet make the entire query pipeline bounded in memory.
 
@@ -150,7 +149,7 @@ java -cp target/minidb-0.1.0.jar minidb.storage.StorageDemo target/storage-demo
 ```
 
 Use a fresh demo directory if `students` already exists. The demo bypasses the
-unfinished SQL parser and executor, writes sample rows, and reads them back.
+SQL query pipeline, writes sample rows, and reads them back.
 
 The storage tests cover round trips, externally authored CSV, quoting, Unicode,
 empty tables, malformed input, integer overflow, schema validation, cursor lifecycle,

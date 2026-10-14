@@ -1,72 +1,178 @@
-## Layout
+# MiniDB
 
-```
-src/main/java/minidb/
-  Main.java              program entry
-  Engine.java            parse, then plan, then execute
-  cli/Cli.java           command line
-  sql/Parser.java        SQL text to a statement
-  sql/ast/               statement and expression nodes
-  catalog/               table and column metadata
-  storage/               streaming CSV reads/writes and standalone storage demo
-  types/                 integer and string values
-  plan/Planner.java      statement to a logical plan
-  exec/                  operators and result printing
-data/                    put paired .csv and .schema table files here
-```
+A Java 17 database project supporting single-table `SELECT / FROM / WHERE` over
+CSV files with explicit schemas. SQL parsing, planning, scan, filtering, projection,
+and CLI execution are implemented. The CLI is read-only.
 
+## Quick start
 
-## Run
+Install JDK 17 or newer and Maven, then run these commands from the repository root:
 
-```bash
-mvn -q test
+```sh
+java -version
+mvn -version
 mvn -q package
-java -jar target/minidb-0.1.0.jar data
+java -jar target/minidb-0.1.0.jar local-test-data
 ```
 
-The prompt accepts a line and exits on `quit`. A single-table `SELECT` parses; planning still throws.
+`package` runs the tests and produces a JAR containing runtime dependencies.
+The shared sample directory is tracked in Git; it contains 11 synthetic rows.
+Enter one complete SQL statement per line at `minidb>`:
 
-## Parser (implemented)
-
-The parser accepts one `SELECT` over one table, with an optional `WHERE`. It
-returns an AST and does not read table files. Planning still throws.
-
-See [the parser guide](docs/parser.md) for the grammar, AST, errors, and tests.
-
-## Storage (implemented)
-
-Storage works independently of the unfinished SQL pipeline. Requires Java 17+ and Maven.
-
-```bash
-mvn -q test
-mvn -q package
-java -cp target/minidb-0.1.0.jar minidb.storage.StorageDemo target/storage-demo
+```sql
+SELECT * FROM students;
+SELECT name FROM students WHERE age >= 18 AND score >= 85;
+SELECT id FROM students WHERE name = 'O''Brien';
+SELECT id FROM students WHERE name = '';
 ```
 
-The demo writes `students.csv` and `students.schema`, then scans and prints their typed rows.
-Use a different output directory on subsequent runs: writes intentionally reject existing tables.
-The packaged JAR includes Apache Commons CSV and its runtime dependencies.
+Expected results: 11 rows; 6 names (Alice, Carol, O'Brien, alice, Max, Alice);
+ID 4; and ID 6, respectively. The final semicolon is optional.
+Type `quit` or `exit` to leave. Multiline statements and multiple statements on
+one line are not supported by the CLI.
 
-Each table has a CSV header and an explicit schema. For example, `students.schema`:
+Output currently displays Java values, for example:
+
+```text
+[Value[type=INTEGER, raw=4]]
+(1 rows)
+```
+
+`raw` is the cell value. See [shared sample queries](local-test-data/README.md)
+for additional inputs and expected results.
+
+## Supported SQL
+
+- One table, `SELECT *` or an ordered column list, including repeated columns.
+- Optional WHERE with integer/string literals and column-to-column comparisons.
+- INTEGER comparisons: `=`, `<>`, `<`, `<=`, `>`, `>=`.
+- STRING comparisons: `=` and `<>`, with exact case-sensitive matching.
+- `NOT`, `AND`, `OR`, and parentheses. Precedence: comparison, NOT, AND, OR.
+- Bare column names or actual table qualifiers, such as `students.age`.
+- Case-insensitive SQL keywords; case-sensitive table and column names.
+- Signed 32-bit integers; single-quoted strings with doubled quote escaping.
+
+No implicit type conversion: `age = '18'` is a planning error.
+JOIN, aliases, multiple tables, ORDER BY, GROUP BY, aggregates, DISTINCT, LIMIT,
+LIKE, SQL NULL, arithmetic, comments, subqueries, and SQL writes are unsupported.
+`table.*` and mixing `*` with other selected columns are also unsupported.
+
+## Use your own tables
+
+Supply a directory containing paired `<table>.schema` and `<table>.csv` files.
+For example, `data/students.schema`:
 
 ```text
 id INTEGER
 name STRING
+age INTEGER
 ```
 
-And `students.csv`:
+And `data/students.csv`:
 
 ```csv
-id,name
-1,Alice
-2,"Smith, Bob"
+id,name,age
+1,Alice,20
+2,"Smith, Bob",17
 ```
 
-See [the storage guide](docs/storage.md) for the API, format rules, tests, and integration steps.
+Save as UTF-8 without a BOM. The CSV header must match schema names and order
+exactly. INTEGER and STRING are the supported schema types. Empty string fields
+are valid; empty integer fields are errors. A header-only CSV is an empty table.
+Then run:
+
+```sh
+java -jar target/minidb-0.1.0.jar data
+```
+
+Prepare the files before starting queries; there is no SQL CREATE TABLE or INSERT.
+See [storage formats and API](docs/storage.md) for quoting and validation rules.
+
+## Architecture and status
+
+```text
+SQL -> Parser -> AST -> Planner + Catalog -> Logical plan
+                                                |
+                                          Executor.compile
+                                                |
+                                    Scan -> Filter -> Project
+                                                |
+                                           QueryResult
+```
+
+| Component | Implemented responsibility |
+| --- | --- |
+| Parser | Tokenization, SELECT AST, precedence, syntax diagnostics |
+| Planner | Column binding, type checks, star expansion, logical plans |
+| Executor | Convert plans into fresh operator trees without reading rows |
+| Operators | Streaming scan, short-circuit filtering, projection, cleanup |
+| Storage | Schema/catalog lookup, CSV cursors, new-table writes via Java API |
+| Engine / CLI | Execute SQL, collect results, print rows, accept next query |
+
+`Executor.compile()` creates Java operator objects; it does not invoke javac or
+produce bytecode. Engine opens the root, pulls rows, and closes it.
+
+## Errors and current limits
+
+- Syntax and planning errors print a message and return to the prompt.
+- Missing files, bad headers, invalid CSV values, and I/O errors raise
+  `StorageException`, which currently exits the CLI. Fix the files and restart.
+- Scan/filter/project stream rows, but QueryResult collects all output in memory.
+- Parser nesting is limited to 128 combined parentheses/NOT levels. Planner
+  predicate-tree depth is limited to 256, including long flat AND/OR chains.
+- Output has no formatted column headers. No optimizer, indexes, or transactions.
+
+If `java` or `mvn` is not recognized, check JDK/Maven installation and PATH.
+If the JAR is missing, run `mvn -q package`. If a table is missing, check the
+supplied directory and the case-sensitive filenames. After source changes,
+rebuild the JAR before manually testing.
+
+## Tests
+
+```sh
+mvn -q test
+mvn -q "-Dtest=PlannerTest,ExecutorTest,EngineTest,CliTest" test
+```
+
+The latest verified suite on 2026-10-11 has 170 passing tests. Tests cover parsing,
+planning, operator lifecycle and cleanup, storage, full SQL results, and CLI
+recovery after syntax/planning errors. Tests create their own fixtures; shared
+samples are for manual verification.
+
+For a separate storage API demonstration (use a fresh output directory each time):
+
+```sh
+java -cp target/minidb-0.1.0.jar minidb.storage.StorageDemo target/storage-demo
+```
+
+## Project layout and documentation
+
+```text
+src/main/java/minidb/
+  Main.java, Engine.java  entry point and query pipeline
+  cli/                   interactive command line
+  sql/                   tokenizer, parser, AST
+  catalog/, storage/     schemas and CSV storage
+  types/                 INTEGER / STRING values
+  plan/                  bound expressions and logical plans
+  exec/                  executor, operators, results
+src/test/java/minidb/     automated tests
+local-test-data/         shared manual-test table and expected results
+```
+
+- [Project updates](CHANGELOG.md)
+- [Parser grammar and API](docs/parser.md)
+- [Planner and executor](docs/planner.md)
+- [Filtering architecture and contracts](docs/query-filtering.md)
+- [Storage](docs/storage.md)
+
+## Next work
+
+Improve result formatting and CLI handling of storage errors; consider streaming
+result output for large queries. Design JOIN, sorting, or aggregation according to
+course requirements before extending the current subset.
 
 ## Group
 
 - [Group notes](https://docs.google.com/document/d/110spyKtpgsiMZG_rsPnJlrbhwEerZRns3I_K3ArTrzk/edit?usp=sharing)
 - [Slack channel](https://app.slack.com/client/T0C1A7U2VJM/C0C1A7UQFFB)
-
-Starting choices: Java, CSV files, integers and strings, then `SELECT` / `FROM` / `JOIN`. Add `WHERE`, `ORDER BY`, `GROUP BY`, more types, and subqueries only after that path works.
